@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AquaTrack preview</title>
+<style>
+:root{--ink:#16212b;--mute:#5d6b78;--line:#dbe3ea;--bg:#f4f7f9;--card:#fff;--brand:#0b6e8a;--warn:#b4531a;--ok:#1f7a4d;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ink:#e6edf3;--mute:#9aa8b5;--line:#2b3946;--bg:#0f161c;--card:#16202a;--brand:#4fb3d0;--warn:#e08a54;--ok:#4cc38a}}
+:root[data-theme="dark"]{--ink:#e6edf3;--mute:#9aa8b5;--line:#2b3946;--bg:#0f161c;--card:#16202a;--brand:#4fb3d0;--warn:#e08a54;--ok:#4cc38a}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:.6rem 1rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+header strong{color:var(--brand);font-size:1.1rem;margin-right:.5rem}
+nav button{background:none;color:var(--ink);border:0;padding:.3rem .6rem;border-radius:4px;font:inherit;cursor:pointer}
+nav button:hover{background:var(--bg)}nav button[aria-current=true]{background:var(--bg);color:var(--brand);font-weight:600}
+header small{margin-left:auto}
+main{max-width:980px;margin:1.25rem auto;padding:0 1rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:1rem;margin-bottom:1rem;overflow-x:auto}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1rem}.stat b{display:block;font-size:1.5rem}small,.mute{color:var(--mute)}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:.5rem;border-bottom:1px solid var(--line)}th{font-size:.8rem;color:var(--mute);font-weight:600}
+label{display:block;font-weight:600;margin:.6rem 0 .2rem}input,select{width:100%;padding:.5rem;border:1px solid var(--line);border-radius:6px;font:inherit;background:var(--card);color:var(--ink)}
+button.p{background:var(--brand);color:#fff;border:0;border-radius:6px;padding:.5rem .9rem;font:inherit;cursor:pointer}
+.flash{padding:.6rem .8rem;border-radius:6px;margin-bottom:1rem}.ok{background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok)}.err{background:color-mix(in srgb,var(--warn) 15%,transparent);color:var(--warn)}
+.badge{padding:.1rem .5rem;border-radius:99px;border:1px solid var(--line);font-size:.8rem}.low{color:var(--warn);font-weight:600}
+h2,h3{margin-top:0}:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.note{font-size:.85rem;color:var(--mute);margin:1rem 0}
+</style>
+</head>
+<body>
+<header>
+  <strong>AquaTrack</strong>
+  <nav id="nav"></nav>
+  <small id="who"></small>
+</header>
+<main>
+  <div id="flash"></div>
+  <div id="view"></div>
+  <p class="note">This page shows the Laravel screens running on sample data in your browser. The real system stores everything in the database and enforces the same rules on the server.</p>
+</main>
+<script>
+const peso = n => '₱' + n.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+const USERS={owner:{name:'Station Owner',role:'owner',label:'Admin',home:'dashboard'},counter:{name:'Counter Staff',role:'counter',label:'Staff',home:'sale'},rider:{name:'Delivery Rider',role:'rider',label:'Rider',home:'deliveries'}};
+const ALLOW={owner:['dashboard','sale','sales','deliveries'],counter:['sale','sales','deliveries'],rider:['deliveries']};
+const S = {
+  user:null,tab:'dashboard',
+  inv:[{id:1,name:'Round container (20L)',filled:40,empty:25,low:10},{id:2,name:'Slim container (20L)',filled:30,empty:20,low:10},{id:3,name:'Water dispenser',filled:6,empty:0,low:2}],
+  prod:[{id:1,name:'Refill - round',item:1,cat:'Refill',price:25},{id:2,name:'Refill - slim',item:2,cat:'Refill',price:25},{id:3,name:'New filled round',item:1,cat:'New Container',price:250},{id:4,name:'New filled slim',item:2,cat:'New Container',price:250},{id:5,name:'Dispenser',item:3,cat:'Dispenser',price:1200}],
+  sales:[{id:1,when:'Today, 8:10 AM',cust:'Walk-in',type:'Walk-in',by:'Counter Staff',total:75,pay:'Paid'},{id:2,when:'Today, 9:45 AM',cust:'Sample Household',type:'Delivery',by:'Delivery Rider',total:250,pay:'Paid'}],
+  del:[{id:1,cust:'Sample Household',addr:'Purok 1, Sample St.',prod:3,qty:2,when:'Oct 5 9:00',status:'Pending'},{id:2,cust:'Corner Sari-sari Store',addr:'Block 4, Main Rd.',prod:1,qty:10,when:'Oct 5 10:30',status:'Assigned',rider:'rider'}],
+  filter:''
+};
+let flash=null;
+const tabs=[['dashboard','Dashboard'],['sale','New sale'],['sales','Sales'],['deliveries','Deliveries']];
+const next={Pending:'Assigned',Assigned:'Out for Delivery','Out for Delivery':'Delivered'};
+const label={Pending:'Assign to rider',Assigned:'Start delivery','Out for Delivery':'Mark delivered'};
+const today=()=>S.sales.reduce((a,s)=>a+s.total,0);
+
+function recordSale(lines,type,cust,by){
+  // all-or-nothing, like the DB transaction in SaleService
+  const need={};
+  for(const l of lines){const p=S.prod.find(x=>x.id==l.pid);if(p.cat!=='Refill')need[p.item]=(need[p.item]||0)+l.qty;}
+  for(const id in need){const it=S.inv.find(i=>i.id==id);if(it.filled<need[id])return {err:`Not enough stock for ${it.name}.`};}
+  for(const id in need)S.inv.find(i=>i.id==id).filled-=need[id];
+  const total=lines.reduce((a,l)=>a+S.prod.find(p=>p.id==l.pid).price*l.qty,0);
+  const sale={id:S.sales.length+1,when:'Just now',cust,type,by,total,pay:'Paid'};S.sales.unshift(sale);return {sale};
+}
+const canAct=d=>{const r=S.user.role;return r==='owner'||(r==='rider'&&d.rider==='rider'&&d.status!=='Pending');};
+function act(id){
+  const d=S.del.find(x=>x.id==id);
+  if(!canAct(d)){flash=['err','You are not allowed to do that.'];return render();}
+  if(d.status==='Pending')d.rider='rider';
+  if(d.status==='Out for Delivery'){
+    const r=recordSale([{pid:d.prod,qty:d.qty}],'Delivery',d.cust,'Delivery Rider');
+    if(r.err){flash=['err',r.err];return render();}
+    flash=['ok',`Delivery #${id} delivered. Sale #${r.sale.id} created automatically.`];
+  } else flash=['ok',`Delivery #${id} is now ${next[d.status]}.`];
+  d.status=next[d.status];render();
+}
+function submitSale(e){
+  e.preventDefault();const f=new FormData(e.target),lines=[];
+  for(let i=0;i<3;i++){const pid=f.get('p'+i),q=+f.get('q'+i);if(pid&&q>0)lines.push({pid:+pid,qty:q});}
+  const c=f.get('cust'),r=recordSale(lines,'Walk-in',c,'Counter Staff');
+  if(r.err)flash=['err',r.err];else{flash=['ok',`Sale #${r.sale.id} recorded (${peso(r.sale.total)}).`];S.tab='sales';}
+  render();
+}
+function opts(){return S.prod.map(p=>`<option value="${p.id}">${p.name} - ${peso(p.price)}</option>`).join('');}
+const views={
+dashboard:()=>{const low=S.inv.filter(i=>i.filled<=i.low);const cnt={};S.del.forEach(d=>cnt[d.status]=(cnt[d.status]||0)+1);
+return `<div class="grid"><div class="card stat"><small>Sales today</small><b>${peso(today())}</b></div><div class="card stat"><small>This week</small><b>${peso(today()+1840)}</b></div><div class="card stat"><small>This month</small><b>${peso(today()+7310)}</b></div></div>
+<div class="card"><h3>Inventory</h3><table><tr><th>Item</th><th>Filled</th><th>Empty</th><th>Low-stock level</th></tr>${S.inv.map(i=>`<tr><td>${i.name}</td><td class="${i.filled<=i.low?'low':''}">${i.filled}</td><td>${i.empty}</td><td>${i.low}</td></tr>`).join('')}</table>${low.length?`<p class="low">Low stock: ${low.map(i=>i.name).join(', ')}</p>`:''}</div>
+<div class="card"><h3>Deliveries by status</h3>${Object.entries(cnt).map(([k,v])=>`<span class="badge">${k}: ${v}</span> `).join('')||'<small>No delivery requests yet.</small>'}</div>`;},
+login:()=>`<div class="card" style="max-width:360px;margin:2rem auto"><h2>Sign in</h2><form id="lf"><label for="u">Username</label><input id="u" name="u" autocomplete="username" required><label for="pw">Password</label><input id="pw" type="password" name="pw" autocomplete="current-password" required><p><button class="p">Sign in</button></p></form><p class="note">Demo accounts, password <b>password</b>: <b>owner</b> (admin), <b>counter</b> (staff), <b>rider</b> (delivery rider).</p></div>`,
+sale:()=>`<div class="card"><h2>Record walk-in sale</h2><form id="sf"><label for="cust">Customer</label><select id="cust" name="cust"><option>Walk-in</option><option>Sample Household</option></select>
+<table style="margin-top:.8rem"><tr><th>Product</th><th style="width:100px">Qty</th></tr>${[0,1,2].map(i=>`<tr><td><select name="p${i}" aria-label="Product ${i+1}">${i?'<option value="">-</option>':''}${opts()}</select></td><td><input type="number" min="1" name="q${i}" aria-label="Quantity ${i+1}" ${i?'':'required value="1"'}></td></tr>`).join('')}</table>
+<p><button class="p">Save sale</button> <small>Try 7 dispensers to see the stock check.</small></p></form></div>`,
+sales:()=>`<div class="card"><h2>Sales</h2><table><tr><th>#</th><th>Date</th><th>Customer</th><th>Type</th><th>Recorded by</th><th>Total</th><th>Payment</th></tr>${S.sales.map(s=>`<tr><td>${s.id}</td><td>${s.when}</td><td>${s.cust}</td><td>${s.type}</td><td>${s.by}</td><td>${peso(s.total)}</td><td>${s.pay}</td></tr>`).join('')}</table></div>`,
+deliveries:()=>`<div class="card"><h3>Delivery requests</h3><p><select id="flt" style="width:auto" aria-label="Filter by status"><option value="">All statuses</option>${['Pending','Assigned','Out for Delivery','Delivered'].map(s=>`<option ${S.filter===s?'selected':''}>${s}</option>`).join('')}</select></p>
+<table><tr><th>#</th><th>Customer</th><th>Order</th><th>When</th><th>Status</th><th>Action</th></tr>${S.del.filter(d=>(S.user.role!=='rider'||d.rider==='rider')&&(!S.filter||d.status===S.filter)).map(d=>`<tr><td>${d.id}</td><td>${d.cust}<br><small>${d.addr}</small></td><td>${d.qty} × ${S.prod.find(p=>p.id==d.prod).name}</td><td>${d.when}</td><td><span class="badge">${d.status}</span></td><td>${next[d.status]&&canAct(d)?`<button class="p" data-id="${d.id}">${label[d.status]}</button>`:''}</td></tr>`).join('')}</table></div>`
+};
+function render(){
+  const u=S.user;
+  nav.innerHTML=u?tabs.filter(([k])=>ALLOW[u.role].includes(k)).map(([k,t])=>`<button data-tab="${k}" ${S.tab===k?'aria-current="true"':''}>${t}</button>`).join(''):'';
+  who.innerHTML=u?`${u.name} (${u.label}) <button class="p" data-out>Log out</button>`:'Preview with sample data';
+  document.getElementById('flash').innerHTML=flash?`<div class="flash ${flash[0]}" role="status">${flash[1]}</div>`:'';flash=null;
+  view.innerHTML=u?views[S.tab]():views.login();
+  const lf=document.getElementById('lf');if(lf)lf.onsubmit=e=>{e.preventDefault();const f=new FormData(lf),a=USERS[f.get('u').trim()];if(!a||f.get('pw')!=='password'){flash=['err','Invalid username or password.'];return render();}S.user=a;S.tab=a.home;render();};
+  const sf=document.getElementById('sf');if(sf)sf.onsubmit=submitSale;
+  const f=document.getElementById('flt');if(f)f.onchange=e=>{S.filter=e.target.value;render();};
+}
+document.addEventListener('click',e=>{if(e.target.closest('[data-out]')){S.user=null;render();return;}const t=e.target.closest('[data-tab]');if(t&&S.user&&ALLOW[S.user.role].includes(t.dataset.tab)){S.tab=t.dataset.tab;render();}const b=e.target.closest('button[data-id]');if(b)act(+b.dataset.id);});
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+@include('errors.minimal', ['title' => 'Something went wrong', 'message' => 'The system could not finish that request. Your data was not changed. Please try again, or contact the owner if it keeps happening.'])
