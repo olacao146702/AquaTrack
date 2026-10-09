@@ -1,0 +1,13 @@
+{
+  "name": "AquaTrack",
+  "short_name": "AquaTrack",
+  "description": "Sales, inventory and delivery management for a water refilling station.",
+  "start_url": "./",
+  "display": "standalone",
+  "theme_color": "#0b6e8a",
+  "background_color": "#f3f6f9",
+  "icons": [
+    {"src": "android-chrome-192x192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "android-chrome-512x512.png", "sizes": "512x512", "type": "image/png"}
+  ]
+}

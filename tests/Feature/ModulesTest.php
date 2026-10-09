@@ -197,4 +197,21 @@ class ModulesTest extends TestCase
         $this->as('owner')->get('/sales?type=Hacked&from=zzz')->assertOk();
         $this->as('owner')->get('/deliveries?status=Hacked')->assertOk();
     }
+
+    public function test_unsold_item_can_be_deleted_but_sold_item_cannot(): void
+    {
+        $dispenser = InventoryItem::where('item_name', 'Water dispenser')->first();
+        $round = InventoryItem::where('item_name', 'like', 'Round%')->first();
+        app(SaleService::class)->record(User::where('username', 'counter')->first(), 'Walk-in', null,
+            [['product_id' => Product::where('product_name', 'New filled round')->first()->id, 'quantity' => 1]]);
+
+        $this->as('owner')->delete("/items/{$round->id}")->assertSessionHasErrors('item');
+        $this->assertDatabaseHas('inventory_items', ['id' => $round->id]);
+
+        $this->as('owner')->delete("/items/{$dispenser->id}")->assertRedirect('/inventory');
+        $this->assertDatabaseMissing('inventory_items', ['id' => $dispenser->id]);
+        $this->assertDatabaseMissing('products', ['product_name' => 'Dispenser']);
+
+        $this->as('counter')->delete("/items/{$round->id}")->assertForbidden();
+    }
 }

@@ -7,7 +7,7 @@
   <div class="card stat"><span>This month</span><b>₱{{ number_format($month, 2) }}</b></div>
 </div>
 @if($lowStock->isNotEmpty())
-<div class="flash err" role="alert">Low stock: {{ $lowStock->pluck('item_name')->join(', ') }}. <a href="{{ route('inventory.adjust') }}">Record a refill</a></div>
+<div class="flash warn" role="alert">Low stock: {{ $lowStock->pluck('item_name')->join(', ') }}. <a href="{{ route('inventory.adjust') }}">Record a refill</a></div>
 @endif
 <div class="card">
   <div class="toolbar"><h3>Inventory</h3><a class="btn alt" href="{{ route('inventory.index') }}">Manage</a></div>

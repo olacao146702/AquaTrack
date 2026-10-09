@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Http\Requests\CustomerRequest;
 use App\Models\Customer;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class CustomerController extends Controller
 {
@@ -14,31 +13,21 @@ class CustomerController extends Controller
         $term = trim((string) $request->query('q', ''));
 
         return view('customers.index', [
-            'customers' => Customer::search($term)
-                ->orderBy('customer_name')
-                ->paginate(15)
-                ->withQueryString(),
-
-            'term' => $term,
+            'customers' => Customer::search($term)->orderBy('customer_name')->paginate(15)->withQueryString(),
+            'term'      => $term,
         ]);
     }
 
     public function create()
     {
-        return view('customers.form', [
-            'customer' => new Customer([
-                'customer_type' => 'Household',
-            ]),
-        ]);
+        return view('customers.form', ['customer' => new Customer(['customer_type' => 'Household'])]);
     }
 
     public function store(CustomerRequest $request)
     {
         $customer = Customer::create($request->validated());
 
-        return redirect()
-            ->route('customers.index')
-            ->with('ok', "Customer {$customer->customer_name} added.");
+        return redirect()->route('customers.index')->with('ok', "Customer {$customer->customer_name} added.");
     }
 
     public function edit(Customer $customer)
@@ -50,29 +39,17 @@ class CustomerController extends Controller
     {
         $customer->update($request->validated());
 
-        return redirect()
-            ->route('customers.index')
-            ->with('ok', 'Customer updated.');
+        return redirect()->route('customers.index')->with('ok', 'Customer updated.');
     }
 
-    public function destroy(string $customer)
-{
-    if (Auth::user()?->role !== 'owner') {
-        abort(403);
+    public function destroy(Customer $customer)
+    {
+        // Past sales and deliveries must keep their customer, so those customers cannot be deleted.
+        if ($customer->sales()->exists() || $customer->deliveries()->exists()) {
+            return back()->withErrors(['customer' => "{$customer->customer_name} has sales or deliveries on record and cannot be deleted."]);
+        }
+        $customer->delete();
+
+        return redirect()->route('customers.index')->with('ok', 'Customer deleted.');
     }
-
-    $customer = Customer::findOrFail($customer);
-
-    if ($customer->sales()->exists() || $customer->deliveries()->exists()) {
-        return back()->withErrors([
-            'customer' => "{$customer->customer_name} has sales or deliveries on record and cannot be deleted.",
-        ]);
-    }
-
-    $customer->delete();
-
-    return redirect()
-        ->route('customers.index')
-        ->with('ok', 'Customer deleted.');
-}
 }

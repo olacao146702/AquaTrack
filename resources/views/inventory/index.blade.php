@@ -10,7 +10,8 @@
     <tr><td>{{ $i->item_name }}</td><td>{{ $i->item_type }}</td><td class="right {{ $i->isLow() ? 'low' : '' }}">{{ $i->filled_qty }}</td><td class="right">{{ $i->empty_qty }}</td><td class="right">{{ $i->low_stock_level }}</td>
     <td><span class="badge {{ $i->isLow() ? 'warn' : 'good' }}">{{ $i->isLow() ? 'Low stock' : 'OK' }}</span></td>
     <td><div class="actions"><a class="btn alt" href="{{ route('inventory.adjust', ['item' => $i->id]) }}">Move stock</a>
-    @if(auth()->user()->role === 'owner')<a class="btn alt" href="{{ route('items.edit', $i) }}">Edit</a>@endif</div></td></tr>
+    @if(auth()->user()->role === 'owner')<a class="btn alt" href="{{ route('items.edit', $i) }}">Edit</a>
+    <form method="post" action="{{ route('items.destroy', $i) }}" onsubmit="return confirm('Permanently delete {{ addslashes($i->item_name) }}, its products and its stock history?')">@csrf @method('DELETE')<button class="danger">Delete</button></form>@endif</div></td></tr>
   @empty<tr><td colspan="7" class="empty">No inventory items yet.@if(auth()->user()->role === 'owner') <a href="{{ route('items.create') }}">Add the first item</a>.@endif</td></tr>@endforelse</table>
 </div>
 @endsection

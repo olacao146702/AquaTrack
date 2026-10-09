@@ -2,7 +2,7 @@
 @section('title', 'Sale #'.$sale->id)
 @section('content')
 <div class="card">
-  <div class="toolbar"><h2>Sale #{{ $sale->id }}</h2><a class="btn alt" href="{{ route('sales.index') }}">Back to sales</a></div>
+  <div class="toolbar"><h2>Sale #{{ $sale->id }}</h2><div class="actions"><button type="button" class="alt" onclick="window.print()">Print</button><a class="btn alt" href="{{ route('sales.index') }}">Back to sales</a></div></div>
   <div class="cols">
     <p><small>Date</small><br>{{ $sale->created_at->format('M j, Y g:i A') }}</p>
     <p><small>Customer</small><br>{{ $sale->customer?->customer_name ?? 'Walk-in' }}</p>

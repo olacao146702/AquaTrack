@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\InventoryItemRequest;
 use App\Models\InventoryItem;
+use App\Models\DeliveryRequest;
+use App\Models\Product;
+use App\Models\SaleItem;
 use App\Services\InventoryService;
 use Illuminate\Support\Facades\DB;
 
@@ -44,5 +47,23 @@ class InventoryItemController extends Controller
         $item->update($request->safe()->only(['item_name', 'item_type', 'low_stock_level']));
 
         return redirect()->route('inventory.index')->with('ok', 'Inventory item updated.');
+    }
+
+    public function destroy(InventoryItem $item)
+    {
+        $productIds = $item->products()->pluck('id');
+
+        // Items whose products were already sold or delivered must stay, or old receipts would break.
+        if (SaleItem::whereIn('product_id', $productIds)->exists() || DeliveryRequest::whereIn('product_id', $productIds)->exists()) {
+            return back()->withErrors(['item' => "{$item->item_name} has sales or deliveries on record and cannot be deleted. Deactivate its products instead."]);
+        }
+
+        DB::transaction(function () use ($item, $productIds) {
+            Product::whereIn('id', $productIds)->delete();
+            $item->movements()->delete();
+            $item->delete();
+        });
+
+        return redirect()->route('inventory.index')->with('ok', "{$item->item_name} was deleted.");
     }
 }
